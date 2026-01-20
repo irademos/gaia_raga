@@ -22,6 +22,78 @@
     window.netlifyIdentity.init();
   }
 </script>
+<script>
+const REPO = "irademos/gaia_raga";
+const BRANCH = "main";
+
+async function fetchFolder(path) {
+  const url = `https://api.github.com/repos/${REPO}/contents/${path}?ref=${BRANCH}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("Failed to fetch " + path);
+  return res.json();
+}
+
+async function fetchFile(url) {
+  const res = await fetch(url);
+  return res.text();
+}
+
+function parseFrontmatter(md) {
+  const match = md.match(/^---([\s\S]*?)---/);
+  if (!match) return { body: md };
+  const meta = {};
+  match[1].split("\n").forEach(line => {
+    const [key, ...rest] = line.split(":");
+    if (!key || !rest.length) return;
+    meta[key.trim()] = rest.join(":").trim();
+  });
+  return {
+    meta,
+    body: md.replace(match[0], "").trim()
+  };
+}
+
+async function loadNews() {
+  const container = document.getElementById("news-list");
+  const files = await fetchFolder("content/posts");
+
+  for (const file of files.reverse()) {
+    const md = await fetchFile(file.download_url);
+    const { meta, body } = parseFrontmatter(md);
+
+    const article = document.createElement("article");
+    article.innerHTML = `
+      <h3>${meta.title || "Post"}</h3>
+      <p>${body.slice(0, 160)}...</p>
+    `;
+    container.appendChild(article);
+  }
+}
+
+async function loadTour() {
+  const container = document.getElementById("tour-list");
+  const files = await fetchFolder("content/tour");
+
+  for (const file of files) {
+    const md = await fetchFile(file.download_url);
+    const { meta } = parseFrontmatter(md);
+
+    const div = document.createElement("div");
+    div.className = "tour-item";
+    div.innerHTML = `
+      <span>${new Date(meta.date).toLocaleDateString()}</span>
+      <span>${meta.city || ""}</span>
+      <span>${meta.venue || ""}</span>
+      <a href="${meta.tickets || "#"}" class="ticket">Tickets</a>
+    `;
+    container.appendChild(div);
+  }
+}
+
+loadNews();
+loadTour();
+</script>
+
 <body>
 
   <!-- HERO -->
@@ -55,36 +127,16 @@
   <!-- TOUR -->
   <section id="tour" class="section dark">
     <h2>Tour</h2>
-    <div class="tour-list">
-      <div class="tour-item">
-        <span>Mar 22</span>
-        <span>Atlanta, GA</span>
-        <span>The Masquerade</span>
-        <a href="#" class="ticket">Tickets</a>
-      </div>
-      <div class="tour-item">
-        <span>Apr 05</span>
-        <span>Nashville, TN</span>
-        <span>Exit/In</span>
-        <a href="#" class="ticket">Tickets</a>
-      </div>
-    </div>
+    <div id="tour-list" class="tour-list"></div>
   </section>
+
 
   <!-- NEWS -->
   <section class="section">
     <h2>News</h2>
-    <div class="news">
-      <article>
-        <h3>New Single Out Now</h3>
-        <p>Stream our latest track on all platforms.</p>
-      </article>
-      <article>
-        <h3>Spring Tour Announced</h3>
-        <p>Hitting the road across the Southeast this April.</p>
-      </article>
-    </div>
+    <div id="news-list" class="news"></div>
   </section>
+
 
   <!-- FOOTER -->
   <footer>
